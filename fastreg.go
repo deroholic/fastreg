@@ -47,9 +47,10 @@ var OR2 = mySetBig("0x216d0b17f4e44a58c49833d53bb808553fe3ab1e35c59e31bb8e645ae2
 
 var ONE = mySetBig("1")
 var ZERO = mySetBig("0")
+var inc = &pt_t{GXMONT, GYMONT, ONE}
 
-func randPt() (*pt_t) {
-        rnd := big.NewInt(0).Exp(big.NewInt(2), big.NewInt(256), nil)
+func randPt(bits int64) (*pt_t) {
+        rnd := big.NewInt(0).Exp(big.NewInt(2), big.NewInt(bits), nil)
         rnd, _ = rand.Int(rand.Reader, rnd)
 
         p := newPt()
@@ -289,8 +290,8 @@ func curveMul(r, a *pt_t, s *big.Int) {
 }
 
 func pointFactory(p *pt_t) (* pt_t){
-	curveAddG(p, p)
-	p.secret.Add(p.secret, ONE)
+	curveAdd(p, p, inc)
+	p.secret.Add(p.secret, inc.secret)
 
 	return p
 }
@@ -422,6 +423,7 @@ func main() {
 	getOpts()
 
 	derogo.DeroInit(daemon_address)
+	inc = randPt(192)
 
 	fmt.Printf("starting %d thread(s)\n", threads)
 
@@ -451,10 +453,10 @@ func main() {
 }
 
 func search(threadId int, c chan *transaction.Transaction) {
-	ctx := randPt()
+	ctx := randPt(255)
 	pList := listInit(ctx)
 
-	tmpPoint := randPt()
+	tmpPoint := randPt(255)
 
 	j := 0
 	for true {
