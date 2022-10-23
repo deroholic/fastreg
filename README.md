@@ -22,7 +22,7 @@ $ ./fastreg --help
 fastreg [--help] [--daemon-address=<127.0.0.1:10102>] [--threads=<8>] [--language=<English>]
 ```
 ```
-% ./fastreg
+$ ./fastreg
 starting 32 thread(s)
 dero1qyycc46zl982j99m8dchhr0ch362hs39krlurxs5e07r4p3d3hetvqg5jdq94
 gadget toaster taboo quote popular flippant auctions muddy fight mews hyper playful pyramid gypsy apex entrance lava skulls agony hubcaps lucky afoot dolphin gather mews
