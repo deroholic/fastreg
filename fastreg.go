@@ -9,6 +9,7 @@ import (
 	"os"
 	"math/big"
 	"crypto/rand"
+	"encoding/hex"
 
 	"golang.org/x/crypto/sha3"
 	"github.com/deroproject/derohe/transaction"
@@ -21,7 +22,13 @@ import (
 const N = 32*1024
 var threads = runtime.GOMAXPROCS(0)
 var language string
+var output *os.File
 var daemon_address = "127.0.0.1:10102"
+
+type result_t struct {
+	txn *transaction.Transaction
+	secret *big.Int
+}
 
 type pt_t struct {
 	x, y, secret *big.Int
@@ -393,16 +400,24 @@ func parseOpt(param string) {
 
         if len(s) > 1 && s[0] == "--daemon-address" {
                 daemon_address = s[1]
-        } else if s[0] == "--language" {
+        } else if len(s) > 1 && s[0] == "--output" {
+		var err error
+		output, err = os.OpenFile(s[1], os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			fmt.Printf("Cannot open file '%s' for writing\n", s[1])
+			os.Exit(0)
+		}
+		fmt.Printf("Output to file '%s'\n", s[1])
+        } else if len(s) > 1 && s[0] == "--language" {
 		language = s[1]
-        } else if s[0] == "--threads" {
+        } else if len(s) > 1 && s[0] == "--threads" {
 		threads, _ = strconv.Atoi(s[1])
 		if threads < 1 {
 			fmt.Printf("threads must > 0\n")
 			os.Exit(0)
 		}
         } else if s[0] == "--help" {
-                fmt.Printf("fastreg [--help] [--daemon-address=<127.0.0.1:10102>] [--threads=<8>] [--language=<English>]\n")
+                fmt.Printf("fastreg [--help] [--daemon-address=<127.0.0.1:10102>] [--threads=<8>] [--language=<English>] [--output=<filename>]\n")
                 os.Exit(0)
         } else {
                 fmt.Printf("invalid argument '%s', skipping\n", param)
@@ -421,30 +436,42 @@ func getOpts() {
 
 func main() {
 	getOpts()
+	defer output.Close()
 
 	derogo.DeroInit(daemon_address)
 	inc = randPt(192)
 
 	fmt.Printf("starting %d thread(s)\n", threads)
 
-	successful_regs := make(chan *transaction.Transaction)
+	results := make(chan result_t)
 
 	for i := 0; i < threads; i++ {
-		go search(i, successful_regs)
+		go search(i, results)
 	}
 
 	now := time.Now()
 	for true {
-		txn := <-successful_regs
-		if !txn.IsRegistrationValid() {
+		result := <-results
+		if !result.txn.IsRegistrationValid() {
 			panic("registration tx could not be generated. something failed.")
 		}
 
-		err := derogo.DeroSendRegTxn(txn.Serialize())
-		if err != nil {
-			fmt.Printf("Error submitting registration tx: %s\n", err)
+		a, _ := rpc.NewAddressFromCompressedKeys(result.txn.MinerAddress[:])
+		fmt.Printf("%s\n", a.String())
+		fmt.Printf("%s\n", mnemonics.Key_To_Words(result.secret, language))
+		fmt.Printf("%064x\n", result.secret)
+
+		tran := result.txn.Serialize()
+
+		if output == nil {
+			err := derogo.DeroSendRegTxn(tran)
+			if err != nil {
+				fmt.Printf("Error submitting registration tx: %s\n", err)
+			} else {
+				fmt.Printf("Transaction submitted: txid = %s\n", result.txn.GetHash())
+			}
 		} else {
-			fmt.Printf("Transaction submitted: txid = %s\n", txn.GetHash())
+			fmt.Fprintf(output, "%064x %s\n", result.secret, hex.EncodeToString(tran))
 		}
 
 		break
@@ -452,7 +479,7 @@ func main() {
 	fmt.Printf("Elapsed time: %s\n", time.Since(now))
 }
 
-func search(threadId int, c chan *transaction.Transaction) {
+func search(threadId int, c chan result_t) {
 	ctx := randPt(255)
 	pList := listInit(ctx)
 
@@ -470,13 +497,9 @@ func search(threadId int, c chan *transaction.Transaction) {
 
 			hash := GetHash(txn)
 			if hash[0] == 0 && hash[1] == 0 && hash[2] == 0 {
-				c <- txn
-
+				result := result_t{txn, pList[i].secret}
+				c <- result
 //				fmt.Printf("[%02d] %d, %064x %064x txid=%x\n", threadId, j, pList[i].secret, tp.secret, hash)
-				a, _ := rpc.NewAddressFromCompressedKeys(txn.MinerAddress[:])
-				fmt.Printf("%s\n", a.String())
-				fmt.Printf("%s\n", mnemonics.Key_To_Words(pList[i].secret, language))
-				fmt.Printf("%064x\n", pList[i].secret)
 
 				// replacement point
 				pList[i] = pointFactory(ctx)
