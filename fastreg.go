@@ -438,7 +438,10 @@ func main() {
 	getOpts()
 	defer output.Close()
 
-	derogo.DeroInit(daemon_address)
+	if output == nil {
+		derogo.DeroInit(daemon_address)
+	}
+
 	inc = randPt(192)
 
 	fmt.Printf("starting %d thread(s)\n", threads)
