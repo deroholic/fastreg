@@ -560,10 +560,12 @@ func compress(p *pt_t) ([]byte) {
 	p.x.FillBytes(b)
 	b = append(b, 0x00)
 
-        y2 := new(big.Int).Sub(P, p.y)
-        if p.y.Cmp(y2) >= 0 {
-                b[32] = 0x01
-        }
+	// p.y >= P/2 ?
+	y2 := new(big.Int).Rsh(P, 1)
+	if p.y.Cmp(y2) >= 0 {
+		b[32] = 0x01
+	}
+
 
 	return b
 }
