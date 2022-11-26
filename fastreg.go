@@ -44,13 +44,13 @@ var GXMONT = mySetBig("0x26b1948aba4465c168faeb79586c8022afdf98edf532bd9d62ce90c
 var GYMONT = mySetBig("0x24c3da4404b3a717f30e6db01e4ef1d4cea805087c00ad93893ab6f1e1aa1f4e")
 var G = &pt_t{GXMONT, GYMONT, ZERO}
 // Dero's field
-var P = mySetBig("21888242871839275222246405745257275088696311157297823662689037894645226208583")
-var NP = mySetBig("0xf57a22b791888c6bd8afcbd01833da809ede7d651eca6ac987d20782e4866389")
-var R2 = mySetBig("0x06d89f71cab8351f47ab1eff0a417ff6b5e71911d44501fbf32cfc5b538afa89")
-var O = mySetBig("21888242871839275222246405745257275088548364400416034343698204186575808495617")
-var NO = mySetBig("0x73f82f1d0d8341b2e39a9828990623916586864b4c6911b3c2e1f593efffffff")
-var OR = mySetBig("0x54a47462623a04a7ab074a58680730147144852009e880ae620703a6be1de925")
-var OR2 = mySetBig("0x216d0b17f4e44a58c49833d53bb808553fe3ab1e35c59e31bb8e645ae216da7")
+var P   = mySetBig("21888242871839275222246405745257275088696311157297823662689037894645226208583")
+var NP  = mySetBig("0xf57a22b791888c6bd8afcbd01833da809ede7d651eca6ac987d20782e4866389")
+var R2  = mySetBig("0x06d89f71cab8351f47ab1eff0a417ff6b5e71911d44501fbf32cfc5b538afa89")
+var O   = mySetBig("0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001")
+var NO  = mySetBig("0x73f82f1d0d8341b2e39a9828990623916586864b4c6911b3c2e1f593efffffff")
+var OR  = mySetBig("0x54a47462623a04a7ab074a58680730147144852009e880ae620703a6be1de925")
+var OR2 = mySetBig("0x0216d0b17f4e44a58c49833d53bb808553fe3ab1e35c59e31bb8e645ae216da7")
 
 var ONE = mySetBig("1")
 var ZERO = mySetBig("0")
@@ -93,8 +93,6 @@ func barretReductionO(a *big.Int) {
 	t.Rsh(t, 508)
 	t.Mul(t, O)
 	a.Sub(a, t)
-
-	if a.Cmp(O) > 0 {a.Sub(a, O)}
 }
 
 func modMulP(p, a, b *big.Int) {
@@ -540,7 +538,16 @@ func getRegistrationTX(p, tp *pt_t) *transaction.Transaction {
 func sign(p, tp *pt_t) (c, s *big.Int) {
 	serialize := []byte(p.String() + tp.String()) // 280 bytes
 	c = HashtoNumber(serialize)
-	barretReductionO(c)
+//	barretReductionO(c)
+
+	for true {
+		t := new(big.Int).Sub(c, O)
+		if (t.Sign() > 0) {
+			c = t
+		} else {
+			break
+		}
+	}
 
 	s = new(big.Int).Mul(c, p.secret)
 	barretReductionO(s)
@@ -549,8 +556,13 @@ func sign(p, tp *pt_t) (c, s *big.Int) {
 //	modMulO(s, c, OR2)
 //	modMulO(s, s, p.secret)
 
-	s = s.Add(s, tp.secret)
-	barretReductionO(s)
+	s.Add(s, tp.secret)
+
+	t := new(big.Int).Sub(s, O)
+	if (t.Sign() > 0) {
+		s = t
+	}
+//	barretReductionO(s)
 
 	return
 }
